@@ -44,7 +44,7 @@ function as_metaupdater_page() {
     echo "<h3>Results</h3>";
 
     $success = 0;
-    $not_found = [];
+    $not_found = array();
 
     foreach( $data as $row ) {
 
