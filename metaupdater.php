@@ -33,65 +33,70 @@ function as_metaupdater_page() {
 
   <?php
   if ( 'POST' == $_SERVER['REQUEST_METHOD'] ) {
-    foreach( explode( PHP_EOL, $_POST['data'] ) as $row ) {
-      $data[] = str_getcsv( $row );
+    foreach( explode( PHP_EOL, stripslashes( $_POST['data'] ) ) as $row ) {
+      $data[] = str_getcsv( $row, ",", '"' );
     }
-    echo "<pre>";
-    print_r( $data );
-    echo "</pre>";
 
-    $header_row = array_shift( $data );
-    $search_field = $header_row[0];
-    $replace_field = $header_row[1];
+    // Get header row
+    list( $search_field, $replace_field ) = array_shift( $data );
 
-    print_r( $header_row );
-    print_r( $data );
-
-    echo "Search: $search_field, replace: $replace_field";
 
     echo "<h3>Results</h3>";
 
     $success = 0;
+    $not_found = [];
 
     foreach( $data as $row ) {
+
+      list( $key, $value ) = $row;
+
+      if ( $key == '' ) continue; // skip blank lines
 
       $args = array(
         'meta_key'   => $search_field,
         'post_type' => 'site'
       );
 
-      if ( is_string( $row[0] ) ) {
-        $args['meta_value'] = $row[0]; 
-      } elseif ( is_numeric( $row[0] ) ) {
-        $args['meta_value_num'] = $row[0];
-      }
+      // if ( is_string( $key ) ) {
+        $args['meta_value'] = $key; 
+      // } elseif ( is_numeric( $key ) ) {
+      //   $args['meta_value_num'] = $key;
+      // }
 
       echo "<p>";
-      print_r( $args );
 
       $query = new WP_Query( $args );
 
       if ( $query->have_posts() ) {
         while ( $query->have_posts() ) {
           $query->the_post();
-          echo get_the_title();
-
           if ( $_POST['dry_run'] != '1' ) {
-            echo "Updating meta for real";
-            if ( update_post_meta( get_the_ID(), $replace_field, $row[1] ) ) {
+            if ( update_post_meta( get_the_ID(), $replace_field, trim( $value ) ) === true ) {
+              echo "<pre>";
+              print_r( $args );
+              echo sprintf( "ID: %d<br>%s: %s<br>Title: %s<br>%s: %s", get_the_ID(), $search_field, $key, get_the_title(), $replace_field, $value );
               $success++;
             }
           }
-
         }
       } else {
+        $not_found[]= $key;
         echo "No results<br>";
       }
-
     }
 
-    echo "<h3>Saved $success terms.</h3>";
-    
+    echo "<h3>Updated $success custom fields OK.</h3><hr>";
+
+    echo "<h3>Errors</h3>";
+    if ( count( $not_found) > 0 ) {
+      echo "<p>Posts with the custom field <strong>$search_field</strong> with these values could not be found:</p>\n<ul>";
+      foreach( $not_found as $error ) {
+        echo "<li>$error</li>\n";
+      }
+      echo "</ul>";
+    } else {
+      echo "<p>None.</p>";
+    }
   }
   ?>
   </div>
@@ -105,6 +110,7 @@ function as_metaupdater_page() {
 openlylocal_id,area_covered
 2192,"All of London"
 2191,"Greater Manchester"
+99999,dummy
   </textarea>
   <p><input type="checkbox" name="dry_run" value="1" checked="checked" /> <label for="dry_run">Dry run - leave the database unchanged</label></p>
   <p><input class="button-primary" type="submit" value="Update Custom Fields" /></p>
